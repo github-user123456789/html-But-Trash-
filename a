@@ -1,0 +1,404 @@
+local plr = owner
+--plr.Character.Humanoid.WalkSpeed = 0; plr.Character.Humanoid.JumpPower = 0
+
+local res = Vector2.new(640, 480)
+local screen = Instance.new("Part", script)
+screen.Anchored = true
+screen.Size = Vector3.new(res.x, res.y) / 60
+screen.CFrame = plr.Character.HumanoidRootPart.CFrame * CFrame.new(0, 6, -4) * CFrame.Angles(0, math.rad(180), 0)
+screen.CanCollide = false
+screen.Transparency = 1
+
+local surface = Instance.new("SurfaceGui", screen)
+surface.LightInfluence = 0
+surface.ClipsDescendants = true
+surface.CanvasSize = res
+
+-- tbh just Old .  stuff lol --
+
+local urlf = Instance.new("TextBox", surface)
+urlf.BackgroundColor3 = Color3.new(.9, .9, .9)
+urlf.BorderSizePixel = 0
+urlf.Size = UDim2.new(1, 0, 0, 16)
+urlf.TextEditable = false
+urlf.ClearTextOnFocus = false
+
+local webview = Instance.new("ScrollingFrame", surface)
+webview.BackgroundColor3 = Color3.new(.8, .8, .8)
+webview.BorderSizePixel = 0
+webview.Size = UDim2.new(1, 0, 1, -16)
+webview.Position = UDim2.new(0, 0, 0, 16)
+
+-------------------------------
+
+local TweenS = game:service("TweenService")
+--------------------------------------------------------------------
+-- Utils
+local Utils = {}
+function Utils:Create(InstData, Props)
+	local Obj = Instance.new(InstData[1], InstData[2])
+	for k, v in pairs (Props) do
+		Obj[k] = v
+	end; if Obj:IsA("ImageLabel") or Obj:IsA("ImageButton") then
+		--Obj.ResampleMode = "Pixelated"
+	end
+	return Obj
+end
+--------------------------------------------------------------------
+
+-- stupit html
+local env = getfenv(0)
+local ElementNode = loadstring(game:service("HttpService"):GetAsync("https://raw.githubusercontent.com/msva/lua-htmlparser/master/src/htmlparser/ElementNode.lua"))()
+env.ElementNode = ElementNode
+local voidelements = loadstring(game:service("HttpService"):GetAsync("https://raw.githubusercontent.com/msva/lua-htmlparser/master/src/htmlparser/voidelements.lua"))()
+env.voidelements = voidelements
+env.require = function(s)
+	if s == "htmlparser.ElementNode" then return ElementNode elseif s == "htmlparser.voidelements" then return voidelements end
+end
+local parser = loadstring(game:service("HttpService"):GetAsync("https://raw.githubusercontent.com/msva/lua-htmlparser/master/src/htmlparser.lua"))
+setfenv(parser, env)
+parser = parser()
+
+-- css parser
+
+local globalCSS = {} -- for the html loader
+local CSSL = {}
+function CSSL:ToLuaO(lol)
+	lol = string.gsub(lol, "{", "={")
+	lol = string.gsub(lol, ":", "=")
+	lol = string.gsub(lol, "-", "_")
+	print(lol)
+end
+
+function CSSL:ToLua(lol)
+	local data = {}
+	
+	local intable = false
+	local ctext = ""
+	
+	lol = string.gsub(lol, " ", "")
+	lol = string.gsub(lol, "	", "")
+	
+	local cset = ""
+	for i = 1,#lol do
+		local char = lol:sub(i, i)
+		if char == "{" and not intable then
+			intable = true
+			--print(ctext)
+			cset = ctext
+			data[cset] = {}
+		elseif char == "}" and intable then
+			intable = false
+		elseif char == [[
+
+]] then
+			--print("newline", ctext, "probably set property")
+			--print("set property?")
+			ctext = string.gsub(ctext, " ", "")
+			--print(ctext)
+			local splits = string.split(ctext, ":")
+			if #splits == 2 then
+				print(splits[1], "has been set to", splits[2], "in", cset)
+				local val = splits[2]
+				if val:sub(1, 1) == "#" then
+					val = Color3.fromHex(val)
+				end
+				data[cset][splits[1]] = val
+			end
+			ctext = ""
+		else
+			ctext ..= char
+		end
+	end
+	return data
+end
+
+-- woa loader
+
+function renderText(parent, xpos, ypos, text, textsize, framesize)
+	local text = Utils:Create({"TextBox", parent}, {
+		TextEditable = false,
+		ClearTextOnFocus = false,
+		Size = UDim2.new(1, 0, 0, framesize),
+		Position = UDim2.new(0, 8 + xpos, 0, ypos),
+		Text = text,
+		TextSize = textsize,
+		--TextScaled = true,
+		TextXAlignment = "Left",
+		--RichText = true,
+		BackgroundTransparency = 1,
+		TextColor3 = Color3.new(0, 0, 0),
+	}); return text
+end
+function renderRuler(parent, ypos)
+	return Utils:Create({"Frame", parent}, {
+		Size = UDim2.new(1, -8, 0, 2),
+		Position = UDim2.new(.5, 0, 0, ypos),
+		AnchorPoint = Vector2.new(.5),
+		BorderSizePixel = 0,
+	})
+end
+
+local canrender
+local onerender = { -- tags that dont need an end
+	brOLD = function(d, inP, down)
+		pcall(function()
+		local parent = d.parent.parent
+		if not parent.CurrentX then
+			repeat
+				parent = parent.parent
+			until parent.CurrentX or not parent
+			if not parent then
+				print("cannot find parent")
+				return
+			end
+		end
+		parent.CurrentX = 0
+		parent.CurrentY += 11
+		end)
+		--parent.CurrentY += down
+	end,
+	br = function(d, inP, down)
+		local parent = d.parent
+		if not parent.CurrentX then
+			repeat
+				parent = parent.parent
+			until parent.CurrentX ~= nil
+		end
+		parent.CurrentX = 0
+		parent.CurrentY += 11
+	end,
+	hr = function(d, inP)
+		local parent = d.parent
+		if not parent.CurrentX then
+			repeat
+				parent = parent.parent
+			until parent.CurrentX ~= nil
+		end
+		parent.CurrentX = 0
+		parent.CurrentY += 11
+		renderRuler(d.parent.Load, parent.CurrentY)
+		parent.CurrentY += 19
+	end,
+}
+function htmltext(d, size, godown, FONT, tag)
+	local content = d:getcontent()
+	local FONT = FONT or "SourceSans"; local OGFONT = FONT
+	
+	local finalROFL = game:GetService("TextService"):GetTextSize(content, size, FONT, Vector2.new(1000, 1000))
+	local finalY = finalROFL.y + 2
+	
+	local ctag
+	
+	local dontload = {}
+	local DISPLAYING = true
+	--print(content)
+	for i = 1,#content do
+		local char = content:sub(i, i)
+		if char == "<" then
+			local smelly
+			local ENDING = false
+			dontload[i] = true
+			local endthisplz = false
+			for lol = 1,20 do if not endthisplz then
+				dontload[i + lol] = true
+				smelly = content:sub(i + lol, i + lol)
+				if smelly == "/" then
+					ENDING = true
+				end
+				if smelly == ">" then
+					if not ENDING then
+						ctag = content:sub(i + 1, i + lol - 1)
+						if canrender[ctag] then
+							local info = canrender[ctag](d, true, finalY + godown)
+							if info then
+								FONT = info.Font or FONT
+								DISPLAYING = not info.StopDisplay
+								if info.StopDisplay == nil then DISPLAYING = true end
+							end
+						elseif onerender[ctag] then
+							print("ok")
+							onerender[ctag](d, true, finalY + godown)
+						end
+						--print(ctag)
+						endthisplz = true
+					else
+						-- we are leaving the tag
+						print("ended tag:", ctag)
+						ctag = nil
+						FONT = OGFONT; DISPLAYING = true
+						endthisplz = true
+					end
+				end
+			end
+		end end
+		if char == "	" then
+			dontload[i] = true
+		end
+		
+		if not dontload[i] and DISPLAYING then
+			local textsize = game:GetService("TextService"):GetTextSize(char, size, FONT, Vector2.new(1000, 1000)) / 2
+			local text = renderText(d.parent.Load, d.parent.CurrentX, d.parent.CurrentY, char, size, textsize.y + godown)
+			text.Font = FONT
+			text.Name = tag or "TextLabel"
+			
+			d.parent.CurrentX += textsize.x*2
+		end
+	end
+	d.parent.CurrentY += finalY + godown
+	d.parent.CurrentX = 0
+end
+local thisURL = ""
+canrender = {
+	body = function(d)
+		d.Load = Utils:Create({"Frame", webview}, {
+			Size = UDim2.new(1, 0, 1, 0),
+			BorderSizePixel = 0,
+			BackgroundColor3 = Color3.new(1, 1, 1),
+			Name = "body",
+		})
+		d.CurrentY = 0
+		d.CurrentX = 0
+	end,
+	h1 = function(d)
+		htmltext(d, 21, 32, "SourceSansBold", "h1")
+		--local text = renderText(d.parent.Load, d.parent.CurrentY, content, 21)
+		--d.parent.CurrentY += 32
+	end,
+	h2 = function(d)
+		htmltext(d, 16, 32, "SourceSansBold", "h2")
+	end,
+	p = function(d)
+		htmltext(d, 11, 0, nil, "p")
+		--local content = d:getcontent()
+		--local text = renderText(d.parent.Load, d.parent.CurrentY, content, 7)
+		--d.parent.CurrentY += 16
+	end,
+	i = function(d, inP)
+		if inP then
+			return {
+				Font = "SourceSansItalic"
+			}
+		else
+			--htmltext(d, 11, 0, "SourceSansItalic")
+		end
+	end,
+	b = function(d, inP)
+		if inP then
+			return {
+				Font = "SourceSansBold"
+			}
+		else
+			--htmltext(d, 11, 0, "SourceSansBold")
+		end
+	end,
+	code = function(d, inP)
+		if inP then
+			return {
+				Font = "RobotoMono"
+			}
+		else
+			--htmltext(d, 11, 0, "RobotoMono")
+		end
+	end,
+	ul = function(d)
+		htmltext(d, 11, 0, nil, "ul")
+		--local content = d:getcontent()
+		--local text = renderText(d.parent.Load, d.parent.CurrentY, content, 7)
+		--d.parent.CurrentY += 16
+		task.wait()
+	end,
+	li = function(d, inP)
+		--htmltext(d, 11, 0, nil, "li")
+		if inP then
+			print("brah")
+			return {
+				StopDisplay = true
+			}
+		end
+		task.wait(.05)
+	end,
+	-- css
+	head = function()
+		
+	end,
+	title = function(d)
+		urlf.Text = d:getcontent()
+	end,
+	link = function(d)
+		if d.attributes.rel == "stylesheet" and d.attributes.type == "text/css" then
+			if d.attributes.href:sub(1, 8) == "https://" then
+				print(d.attributes.href)
+				local linked = d.attributes.href
+				local CSS = CSSL:ToLua(game:service("HttpService"):GetAsync(linked))
+				globalCSS = CSS
+			else
+				local linked = thisURL .."/" ..d.attributes.href
+				local CSS = CSSL:ToLua(game:service("HttpService"):GetAsync(linked))
+				globalCSS = CSS
+			end
+		end
+	end,
+}
+canrender.strong = canrender.b
+canrender.hr = onerender.hr
+
+local CLEVEL = 1
+
+function RENDER(v, level)
+	if canrender[v.name] then
+		--print("rendering ..", v.name)
+		canrender[v.name](v)
+		-- load more
+		level += 1
+		for i,more in v.nodes do
+			RENDER(more, level)
+		end
+	elseif onerender[v.name] then
+		print(onerender[v.name])
+		onerender[v.name](v)
+		print("huhg")
+		-- load more
+		level += 1
+		for i,more in v.nodes do
+			RENDER(more, level)
+		end
+	end
+end
+function loadpage(url)
+	urlf.Text = url
+	thisURL = url
+	local code = game:service("HttpService"):GetAsync(url)
+	local root = parser.parse(code)
+	local elements = root("*")
+	
+	for i,v in elements do
+		if v.level == CLEVEL + 1 then
+			--[[table.foreach(v, print)
+			if canrender[v.name] then
+				print("rendering ..", v.name)
+				canrender[v.name](v)
+			end]]
+			RENDER(v, CLEVEL)
+			--print("-------------------")
+		end
+	end
+	warn("HACKERMAN CSS.. LOADING")
+	-- load css
+	--table.foreach(globalCSS, print)
+	for i,v in webview:GetDescendants() do
+		if globalCSS[v.Name] then
+			--print(v.Name)
+			local css = globalCSS[v.Name]
+			--table.foreach(css, print)
+			if css["background-color"] then
+				--print("oh my george set the color")
+				v.BackgroundColor3 = css["background-color"]
+			end
+		end
+	end
+end
+
+--loadpage("https://thebestsite.youngmacka123.repl.co/tests/test2.html")
+--loadpage("https://headsmasher8557.github.io/blog/relations.html")
+loadpage("https://headsmasher8557.github.io/blog/blog.html")
