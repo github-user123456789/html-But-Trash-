@@ -14,7 +14,7 @@ surface.LightInfluence = 0
 surface.ClipsDescendants = true
 surface.CanvasSize = res
 
--- tbh just Old .  stuff lol --
+-- Shut up
 
 local urlf = Instance.new("TextBox", surface)
 urlf.BackgroundColor3 = Color3.new(.9, .9, .9)
@@ -29,10 +29,6 @@ webview.BorderSizePixel = 0
 webview.Size = UDim2.new(1, 0, 1, -16)
 webview.Position = UDim2.new(0, 0, 0, 16)
 
--------------------------------
-
-local TweenS = game:service("TweenService")
---------------------------------------------------------------------
 -- Utils
 local Utils = {}
 function Utils:Create(InstData, Props)
